@@ -7,6 +7,7 @@ import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionChunk;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.aiagent.dto.LlmResponseDTO;
 import org.example.aiagent.service.LlmService;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LlmServiceImpl implements LlmService {
 
     @Value("${llm.model-name}")
@@ -35,7 +37,7 @@ public class LlmServiceImpl implements LlmService {
         CompletableFuture<ChatCompletion> future = openAIClient.async().chat().completions().create(params);
         ChatCompletion chatCompletion = future.join();
         if (!chatCompletion.isValid()) {
-            return null;
+            log.warn("有问题的Completion: {}", chatCompletion);
         }
 
         LlmResponseDTO llmResponse = new LlmResponseDTO();
@@ -60,7 +62,7 @@ public class LlmServiceImpl implements LlmService {
         return Flux.create(sink -> {
             streamResponse.subscribe(chunk -> {
                         if (!chunk.isValid()) {
-                            System.out.println("有问题的chunk: " + chunk);
+                            log.warn("有问题的chunk: {}", chunk);
                         }
                         chunk.choices().forEach(choice -> {
                             LlmResponseDTO llmResponse = new LlmResponseDTO();
