@@ -43,14 +43,9 @@ public class LlmServiceImpl implements LlmService {
 
         return Flux.create(sink -> {
             streamResponse.subscribe(chunk -> {
-                if (chunk.isValid()) {
+                if (chunk != null) {
                     sink.next(chunk);
                 }
-                // 处理结束标识
-                chunk.choices().stream()
-                        .filter(c -> c.finishReason().isPresent())
-                        .findFirst()
-                        .ifPresent(c -> sink.complete());
             });
 
             streamResponse.onCompleteFuture().whenComplete((unused, throwable) -> {

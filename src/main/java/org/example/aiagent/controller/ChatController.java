@@ -1,11 +1,13 @@
 package org.example.aiagent.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.example.aiagent.dto.ChatRequestDTO;
 import org.example.aiagent.dto.ChatResponseDTO;
 import org.example.aiagent.service.ChatService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 
@@ -20,13 +22,13 @@ public class ChatController {
         return "Hello, World!";
     }
 
-    @GetMapping("/chat")
-    public ChatResponseDTO chat(@RequestParam String prompt) {
-        return chatService.chat(prompt);
+    @PostMapping("/chat")
+    public ChatResponseDTO chat(@RequestBody ChatRequestDTO requestDTO) {
+        return chatService.chat(requestDTO);
     }
 
-    @GetMapping(value = "/stream-chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ChatResponseDTO> stream(@RequestParam String prompt) {
-        return chatService.streamChat(prompt);
+    @PostMapping(value = "/stream-chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ChatResponseDTO> stream(@RequestBody ChatRequestDTO requestDTO) {
+        return chatService.streamChat(requestDTO);
     }
 }
