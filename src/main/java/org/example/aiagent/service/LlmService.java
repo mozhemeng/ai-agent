@@ -1,10 +1,13 @@
 package org.example.aiagent.service;
 
-import org.example.aiagent.dto.LlmResponseDTO;
+import com.openai.models.chat.completions.ChatCompletionChunk;
+import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import reactor.core.publisher.Flux;
 
-public interface LlmService {
-    LlmResponseDTO chat(String prompt);
+import java.util.List;
 
-    Flux<LlmResponseDTO> streamChat(String prompt);
+public interface LlmService {
+    List<ChatCompletionChunk> execute(ChatCompletionCreateParams params);
+
+    Flux<ChatCompletionChunk> executeStreaming(ChatCompletionCreateParams params);
 }
