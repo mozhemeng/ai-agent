@@ -1,13 +1,13 @@
 package org.example.aiagent.service;
 
-import com.openai.models.chat.completions.ChatCompletionChunk;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import org.example.aiagent.entity.ModelInput;
+import org.example.aiagent.entity.ModelOutput;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
 
 public interface LlmService {
-    List<ChatCompletionChunk> execute(ChatCompletionCreateParams params);
+    List<ModelOutput> execute(ModelInput input);
 
-    Flux<ChatCompletionChunk> executeStreaming(ChatCompletionCreateParams params);
+    Flux<ModelOutput> executeStreaming(ModelInput input);
 }

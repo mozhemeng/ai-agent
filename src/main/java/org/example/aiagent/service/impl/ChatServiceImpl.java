@@ -1,14 +1,13 @@
 package org.example.aiagent.service.impl;
 
-import com.openai.models.chat.completions.ChatCompletionChunk;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
-import com.openai.models.chat.completions.ChatCompletionStreamOptions;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.example.aiagent.dto.ChatRequestDTO;
 import org.example.aiagent.dto.ChatResponseDTO;
 import org.example.aiagent.entity.ChatMessage;
 import org.example.aiagent.entity.ChatSession;
+import org.example.aiagent.entity.ModelInput;
+import org.example.aiagent.entity.ModelOutput;
 import org.example.aiagent.enums.MessageRoleEnum;
 import org.example.aiagent.service.ChatMessageService;
 import org.example.aiagent.service.ChatService;
@@ -20,7 +19,6 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
-import java.util.Optional;
 
 
 @Service
@@ -63,8 +61,10 @@ public class ChatServiceImpl implements ChatService {
         // 保存用户消息
         chatMessageService.save(userMessage);
 
-        ChatCompletionCreateParams params = buildChatParams(chatRequest.getUserPrompt());
-        List<ChatCompletionChunk> chunks = llmService.execute(params);
+        // 构造模型入参
+        ModelInput input = new ModelInput();
+        input.setUserPrompt(chatRequest.getUserPrompt());
+        List<ModelOutput> outputList = llmService.execute(input);
 
         // 模型返回的消息
         ChatMessage modelMessage = new ChatMessage();
@@ -76,30 +76,23 @@ public class ChatServiceImpl implements ChatService {
         // 累加拼接流式内容
         StringBuilder contentSb = new StringBuilder();
         StringBuilder reasonSb = new StringBuilder();
-        for (ChatCompletionChunk chunk : chunks) {
-            chunk.choices().stream().findFirst().ifPresent(choice -> {
-                choice.delta().content().ifPresent(content -> {
-                    if (StringUtils.isNotBlank(content)) {
-                        contentSb.append(content);
-                    }
-                });
-                Optional.of(choice.delta()._additionalProperties()).ifPresent(additionalProperties -> {
-                    if (additionalProperties.containsKey("reasoning_content") && !additionalProperties.get("reasoning_content").isNull()) {
-                        reasonSb.append(additionalProperties.get("reasoning_content").toString());
-                    }
-                });
-            });
-            chunk.usage().ifPresent(usage -> {
-                modelMessage.setPromptTokenUsage(usage.promptTokens());
-                modelMessage.setCompletionTokenUsage(usage.completionTokens());
-                modelMessage.setTotalTokenUsage(usage.totalTokens());
-            });
-
+        for (ModelOutput output : outputList) {
+            if (StringUtils.isNotEmpty(output.getContent())) {
+                contentSb.append(output.getContent());
+            }
+            if (StringUtils.isNotEmpty(output.getReasoning())) {
+                reasonSb.append(output.getReasoning());
+            }
+            if (output.getUsage() != null) {
+                modelMessage.setPromptTokenUsage(output.getUsage().getPromptTokens());
+                modelMessage.setCompletionTokenUsage(output.getUsage().getCompletionTokens());
+                modelMessage.setTotalTokenUsage(output.getUsage().getTotalTokens());
+            }
         }
 
+        // 保存模型消息
         modelMessage.setContent(contentSb.toString());
         modelMessage.setReasoning(reasonSb.toString());
-        // 保存模型消息
         chatMessageService.save(modelMessage);
 
         ChatResponseDTO chatResponse = new ChatResponseDTO();
@@ -136,7 +129,9 @@ public class ChatServiceImpl implements ChatService {
         // 保存用户消息
         chatMessageService.save(userMessage);
 
-        ChatCompletionCreateParams params = buildChatParams(chatRequest.getUserPrompt());
+        // 构造模型入参
+        ModelInput input = new ModelInput();
+        input.setUserPrompt(chatRequest.getUserPrompt());
 
         // 模型返回的消息
         ChatMessage modelMessage = new ChatMessage();
@@ -147,30 +142,29 @@ public class ChatServiceImpl implements ChatService {
         StringBuilder contentSb = new StringBuilder();
         StringBuilder reasonSb = new StringBuilder();
 
-        return llmService.executeStreaming(params)
-                .doOnNext(chunk -> {
-                    chunk.choices().stream().findFirst().ifPresent(choice -> {
-                        choice.delta().content().ifPresent(content -> {
-                            if (StringUtils.isNotBlank(content)) {
-                                contentSb.append(content);
-                            }
-                        });
-                        Optional.of(choice.delta()._additionalProperties()).ifPresent(additionalProperties -> {
-                            if (additionalProperties.containsKey("reasoning_content") && !additionalProperties.get("reasoning_content").isNull()) {
-                                reasonSb.append(additionalProperties.get("reasoning_content").toString());
-                            }
-                        });
-                    });
-                    chunk.usage().ifPresent(usage -> {
-                        modelMessage.setPromptTokenUsage(usage.promptTokens());
-                        modelMessage.setCompletionTokenUsage(usage.completionTokens());
-                        modelMessage.setTotalTokenUsage(usage.totalTokens());
-                    });
+        return llmService.executeStreaming(input)
+                .doOnNext(output -> {
+                    if (StringUtils.isNotEmpty(output.getContent())) {
+                        contentSb.append(output.getContent());
+                    }
+                    if (StringUtils.isNotEmpty(output.getReasoning())) {
+                        reasonSb.append(output.getReasoning());
+                    }
+                    if (output.getUsage() != null) {
+                        modelMessage.setPromptTokenUsage(output.getUsage().getPromptTokens());
+                        modelMessage.setCompletionTokenUsage(output.getUsage().getCompletionTokens());
+                        modelMessage.setTotalTokenUsage(output.getUsage().getTotalTokens());
+                    }
                 })
                 // 转为ChatResponse
-                .map(this::chunkToChatResponse)
+                .map(output -> {
+                    ChatResponseDTO chatResponse = new ChatResponseDTO();
+                    chatResponse.setContent(output.getContent());
+                    chatResponse.setReasoning(output.getReasoning());
+                    return chatResponse;
+                })
                 // 过滤掉没有内容的消息
-                .filter(dto -> dto.getContent() != null || dto.getReasoning() != null)
+                .filter(dto -> StringUtils.isNotEmpty(dto.getContent()) || StringUtils.isNotEmpty(dto.getReasoning()))
                 // 保存模型消息
                 .doOnComplete(() -> {
                     modelMessage.setContent(contentSb.toString());
@@ -192,33 +186,5 @@ public class ChatServiceImpl implements ChatService {
         }
 
         return cleanContent.substring(0, maxLength) + "...";
-    }
-
-    private ChatCompletionCreateParams buildChatParams(String prompt) {
-
-        return ChatCompletionCreateParams.builder()
-                .addUserMessage(prompt)
-                .model(modelName)
-                .streamOptions(ChatCompletionStreamOptions.builder()
-                        .includeUsage(true)
-                        .build())
-                .build();
-    }
-
-    private ChatResponseDTO chunkToChatResponse(ChatCompletionChunk chunk) {
-        ChatResponseDTO chatResponse = new ChatResponseDTO();
-        chunk.choices().stream().findFirst().ifPresent(choice -> {
-            choice.delta().content().ifPresent(content -> {
-                if (StringUtils.isNotBlank(content)) {
-                    chatResponse.setContent(content);
-                }
-            });
-            Optional.of(choice.delta()._additionalProperties()).ifPresent(additionalProperties -> {
-                if (additionalProperties.containsKey("reasoning_content") && !additionalProperties.get("reasoning_content").isNull()) {
-                    chatResponse.setReasoning(additionalProperties.get("reasoning_content").toString());
-                }
-            });
-        });
-        return chatResponse;
     }
 }
