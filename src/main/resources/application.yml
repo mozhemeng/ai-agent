@@ -18,5 +18,5 @@ spring:
 
 llm:
   base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-  model-name: qwen3-8b
-  system-prompt: "You are a helpful assistant."
+  model-name: qwen3-vl-30b-a3b-thinking
+  system-prompt-file: system_prompt.md

@@ -6,6 +6,7 @@ import com.openai.core.http.StreamResponse;
 import com.openai.models.chat.completions.ChatCompletionChunk;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionStreamOptions;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -14,9 +15,12 @@ import org.example.aiagent.entity.ModelInput;
 import org.example.aiagent.entity.ModelOutput;
 import org.example.aiagent.service.LlmService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -31,8 +35,15 @@ public class OpenAiLlmServiceImpl implements LlmService {
     @Value("${llm.model-name}")
     private String modelName;
 
-    @Value("${llm.system-prompt}")
+    @Value("${llm.system-prompt-file}")
+    private String systemPromptFile;
+
     private String systemPrompt;
+
+    @PostConstruct
+    public void init() {
+        systemPrompt = getSystemPrompt();
+    }
 
     public List<ModelOutput> execute(ModelInput input) {
         ChatCompletionCreateParams params = buildChatParams(input);
@@ -78,7 +89,6 @@ public class OpenAiLlmServiceImpl implements LlmService {
     }
 
     private ChatCompletionCreateParams buildChatParams(ModelInput input) {
-
         ChatCompletionCreateParams.Builder paramBuilder = ChatCompletionCreateParams.builder()
                 .model(modelName)
                 .streamOptions(ChatCompletionStreamOptions.builder()
@@ -125,5 +135,17 @@ public class OpenAiLlmServiceImpl implements LlmService {
         }
 
         return output;
+    }
+
+    private String getSystemPrompt() {
+        try {
+            Resource resource = new ClassPathResource(systemPromptFile);
+            String content = Files.readString(resource.getFile().toPath());
+            log.info("读取到系统提示词：\n{}", content);
+            return content;
+        } catch (Exception e) {
+            log.error("读取系统提示词失败", e);
+            return "";
+        }
     }
 }
