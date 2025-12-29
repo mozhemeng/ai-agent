@@ -1,5 +1,6 @@
 package org.example.aiagent.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.aiagent.dto.ChatRequestDTO;
 import org.example.aiagent.dto.ChatResponseDTO;
@@ -23,12 +24,12 @@ public class ChatController {
     }
 
     @PostMapping("/chat")
-    public ChatResponseDTO chat(@RequestBody ChatRequestDTO requestDTO) {
+    public ChatResponseDTO chat(@RequestBody @Valid ChatRequestDTO requestDTO) {
         return chatService.chat(requestDTO);
     }
 
     @PostMapping(value = "/stream-chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ChatResponseDTO> stream(@RequestBody ChatRequestDTO requestDTO) {
+    public Flux<ChatResponseDTO> stream(@RequestBody @Valid ChatRequestDTO requestDTO) {
         return chatService.streamChat(requestDTO);
     }
 }

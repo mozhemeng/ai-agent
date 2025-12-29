@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
+import java.util.Comparator;
 import java.util.List;
 
 
@@ -48,8 +49,19 @@ public class ChatServiceImpl implements ChatService {
             chatSessionService.save(chatSession);
         }
 
+        // 最近的10条历史对话
+        List<ChatMessage> messageList = chatMessageService.lambdaQuery()
+                .eq(ChatMessage::getSessionId, chatRequest.getSessionId())
+                .isNotNull(ChatMessage::getSequence)
+                .orderByDesc(ChatMessage::getSequence)
+                .last("limit 10")
+                .list();
+
         // 当前序列
-        Integer currentSeq = chatMessageService.getCurrentSeq(chatRequest.getSessionId());
+        int currentSeq = messageList.stream().map(ChatMessage::getSequence).max(Integer::compareTo).orElse(0);
+
+        // 重新按顺序排序
+        messageList.sort(Comparator.comparingInt(ChatMessage::getSequence));
 
         // 用户发送的消息
         ChatMessage userMessage = new ChatMessage();
@@ -64,6 +76,7 @@ public class ChatServiceImpl implements ChatService {
         // 构造模型入参
         ModelInput input = new ModelInput();
         input.setUserPrompt(chatRequest.getUserPrompt());
+        input.setHistoryChatMessageList(messageList);
         List<ModelOutput> outputList = llmService.execute(input);
 
         // 模型返回的消息
@@ -116,8 +129,19 @@ public class ChatServiceImpl implements ChatService {
             chatSessionService.save(chatSession);
         }
 
+        // 最近的10条历史对话
+        List<ChatMessage> messageList = chatMessageService.lambdaQuery()
+                .eq(ChatMessage::getSessionId, chatRequest.getSessionId())
+                .isNotNull(ChatMessage::getSequence)
+                .orderByDesc(ChatMessage::getSequence)
+                .last("limit 10")
+                .list();
+
         // 当前序列
-        Integer currentSeq = chatMessageService.getCurrentSeq(chatRequest.getSessionId());
+        int currentSeq = messageList.stream().map(ChatMessage::getSequence).max(Integer::compareTo).orElse(0);
+
+        // 重新按顺序排序
+        messageList.sort(Comparator.comparingInt(ChatMessage::getSequence));
 
         // 用户发送的消息
         ChatMessage userMessage = new ChatMessage();
@@ -131,6 +155,7 @@ public class ChatServiceImpl implements ChatService {
 
         // 构造模型入参
         ModelInput input = new ModelInput();
+        input.setHistoryChatMessageList(messageList);
         input.setUserPrompt(chatRequest.getUserPrompt());
 
         // 模型返回的消息

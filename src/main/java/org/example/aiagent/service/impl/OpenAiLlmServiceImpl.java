@@ -8,6 +8,8 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionStreamOptions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.example.aiagent.entity.ChatMessage;
 import org.example.aiagent.entity.ModelInput;
 import org.example.aiagent.entity.ModelOutput;
 import org.example.aiagent.service.LlmService;
@@ -28,6 +30,9 @@ public class OpenAiLlmServiceImpl implements LlmService {
 
     @Value("${llm.model-name}")
     private String modelName;
+
+    @Value("${llm.system-prompt}")
+    private String systemPrompt;
 
     public List<ModelOutput> execute(ModelInput input) {
         ChatCompletionCreateParams params = buildChatParams(input);
@@ -74,13 +79,31 @@ public class OpenAiLlmServiceImpl implements LlmService {
 
     private ChatCompletionCreateParams buildChatParams(ModelInput input) {
 
-        return ChatCompletionCreateParams.builder()
-                .addUserMessage(input.getUserPrompt())
+        ChatCompletionCreateParams.Builder paramBuilder = ChatCompletionCreateParams.builder()
                 .model(modelName)
                 .streamOptions(ChatCompletionStreamOptions.builder()
                         .includeUsage(true)
                         .build())
-                .build();
+                .addSystemMessage(systemPrompt);
+
+        // 历史对话
+        if (CollectionUtils.isNotEmpty(input.getHistoryChatMessageList())) {
+            for (ChatMessage message : input.getHistoryChatMessageList()) {
+                switch (message.getRole()) {
+                    case USER:
+                        paramBuilder.addUserMessage(message.getContent());
+                        break;
+                    case ASSISTANT:
+                        paramBuilder.addAssistantMessage(message.getContent());
+                        break;
+                }
+            }
+        }
+
+        // 当前prompt
+        paramBuilder.addUserMessage(input.getUserPrompt());
+
+        return paramBuilder.build();
     }
 
     private ModelOutput convertToModelOutput(ChatCompletionChunk chunk) {
