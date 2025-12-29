@@ -15,6 +15,9 @@ spring:
   sql:
     init:
       mode: always
+  servlet:
+    multipart:
+      max-file-size: 5MB
 
 llm:
   base-url: https://dashscope.aliyuncs.com/compatible-mode/v1

@@ -15,6 +15,7 @@ public class ChatMessage {
     private MessageRoleEnum role;
     private String content;
     private String reasoning;
+    private String attachment;
     private Long promptTokenUsage;
     private Long completionTokenUsage;
     private Long totalTokenUsage;

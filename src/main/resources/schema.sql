@@ -10,14 +10,15 @@ CREATE TABLE chat_session
 
 CREATE TABLE chat_message
 (
-    id          VARCHAR(36) PRIMARY KEY,
-    session_id  VARCHAR(36),
-    role        VARCHAR(50),
-    content     TEXT,
-    reasoning   TEXT,
-    prompt_token_usage BIGINT,
+    id                     VARCHAR(36) PRIMARY KEY,
+    session_id             VARCHAR(36),
+    role                   VARCHAR(50),
+    content                TEXT,
+    reasoning              TEXT,
+    attachment             TEXT,
+    prompt_token_usage     BIGINT,
     completion_token_usage BIGINT,
-    total_token_usage BIGINT,
-    sequence    INTEGER,
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    total_token_usage      BIGINT,
+    sequence               INTEGER,
+    create_time            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

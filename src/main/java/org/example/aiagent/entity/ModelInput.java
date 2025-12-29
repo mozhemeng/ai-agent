@@ -6,6 +6,6 @@ import java.util.List;
 
 @Data
 public class ModelInput {
-    private String userPrompt;
+    private ChatMessage currentChatMessage;
     private List<ChatMessage> historyChatMessageList;
 }

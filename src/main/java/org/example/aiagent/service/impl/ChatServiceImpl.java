@@ -1,6 +1,9 @@
 package org.example.aiagent.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.example.aiagent.dto.ChatRequestDTO;
 import org.example.aiagent.dto.ChatResponseDTO;
@@ -22,6 +25,7 @@ import java.util.Comparator;
 import java.util.List;
 
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
@@ -34,6 +38,8 @@ public class ChatServiceImpl implements ChatService {
     private final ChatSessionService chatSessionService;
 
     private final ChatMessageService chatMessageService;
+
+    private final ObjectMapper objectMapper;
 
     @Override
     public ChatResponseDTO chat(ChatRequestDTO chatRequest) {
@@ -75,7 +81,7 @@ public class ChatServiceImpl implements ChatService {
 
         // 构造模型入参
         ModelInput input = new ModelInput();
-        input.setUserPrompt(chatRequest.getUserPrompt());
+        input.setCurrentChatMessage(userMessage);
         input.setHistoryChatMessageList(messageList);
         List<ModelOutput> outputList = llmService.execute(input);
 
@@ -150,13 +156,20 @@ public class ChatServiceImpl implements ChatService {
         userMessage.setRole(MessageRoleEnum.USER);
         userMessage.setContent(chatRequest.getUserPrompt());
         userMessage.setSequence(currentSeq + 1);
+        if (CollectionUtils.isNotEmpty(chatRequest.getAttachmentList())) {
+            try {
+                userMessage.setAttachment(objectMapper.writeValueAsString(chatRequest.getAttachmentList()));
+            } catch (Exception e) {
+                log.error("序列化附件列表失败", e);
+            }
+        }
         // 保存用户消息
         chatMessageService.save(userMessage);
 
         // 构造模型入参
         ModelInput input = new ModelInput();
+        input.setCurrentChatMessage(userMessage);
         input.setHistoryChatMessageList(messageList);
-        input.setUserPrompt(chatRequest.getUserPrompt());
 
         // 模型返回的消息
         ChatMessage modelMessage = new ChatMessage();

@@ -1,11 +1,11 @@
 package org.example.aiagent.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.client.OpenAIClient;
 import com.openai.core.http.AsyncStreamResponse;
 import com.openai.core.http.StreamResponse;
-import com.openai.models.chat.completions.ChatCompletionChunk;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
-import com.openai.models.chat.completions.ChatCompletionStreamOptions;
+import com.openai.models.chat.completions.*;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +40,8 @@ public class OpenAiLlmServiceImpl implements LlmService {
 
     private String systemPrompt;
 
+    private final ObjectMapper objectMapper;
+
     @PostConstruct
     public void init() {
         systemPrompt = getSystemPrompt();
@@ -63,8 +65,7 @@ public class OpenAiLlmServiceImpl implements LlmService {
     public Flux<ModelOutput> executeStreaming(ModelInput input) {
         ChatCompletionCreateParams params = buildChatParams(input);
 
-        AsyncStreamResponse<ChatCompletionChunk> streamResponse =
-                openAIClient.async().chat().completions().createStreaming(params);
+        AsyncStreamResponse<ChatCompletionChunk> streamResponse = openAIClient.async().chat().completions().createStreaming(params);
 
         return Flux.create(sink -> {
             streamResponse.subscribe(chunk -> {
@@ -89,19 +90,14 @@ public class OpenAiLlmServiceImpl implements LlmService {
     }
 
     private ChatCompletionCreateParams buildChatParams(ModelInput input) {
-        ChatCompletionCreateParams.Builder paramBuilder = ChatCompletionCreateParams.builder()
-                .model(modelName)
-                .streamOptions(ChatCompletionStreamOptions.builder()
-                        .includeUsage(true)
-                        .build())
-                .addSystemMessage(systemPrompt);
+        ChatCompletionCreateParams.Builder paramBuilder = ChatCompletionCreateParams.builder().model(modelName).streamOptions(ChatCompletionStreamOptions.builder().includeUsage(true).build()).addSystemMessage(systemPrompt);
 
         // 历史对话
         if (CollectionUtils.isNotEmpty(input.getHistoryChatMessageList())) {
             for (ChatMessage message : input.getHistoryChatMessageList()) {
                 switch (message.getRole()) {
                     case USER:
-                        paramBuilder.addUserMessage(message.getContent());
+                        paramBuilder.addUserMessageOfArrayOfContentParts(buildUserContentParts(message));
                         break;
                     case ASSISTANT:
                         paramBuilder.addAssistantMessage(message.getContent());
@@ -111,7 +107,7 @@ public class OpenAiLlmServiceImpl implements LlmService {
         }
 
         // 当前prompt
-        paramBuilder.addUserMessage(input.getUserPrompt());
+        paramBuilder.addUserMessageOfArrayOfContentParts(buildUserContentParts(input.getCurrentChatMessage()));
 
         return paramBuilder.build();
     }
@@ -147,5 +143,26 @@ public class OpenAiLlmServiceImpl implements LlmService {
             log.error("读取系统提示词失败", e);
             return "";
         }
+    }
+
+    private List<ChatCompletionContentPart> buildUserContentParts(ChatMessage chatMessage) {
+        List<ChatCompletionContentPart> allParts = new ArrayList<>();
+        // 文本部分
+        allParts.add(ChatCompletionContentPart.ofText(ChatCompletionContentPartText.builder().text(chatMessage.getContent()).build()));
+        // 图片部分
+        if (chatMessage.getAttachment() != null) {
+            try {
+                List<String> attachmentList = objectMapper.readValue(chatMessage.getAttachment(), new TypeReference<List<String>>() {
+                });
+                for (String attachment : attachmentList) {
+                    ChatCompletionContentPartImage.ImageUrl imageUrl = ChatCompletionContentPartImage.ImageUrl.builder().url(attachment).detail(ChatCompletionContentPartImage.ImageUrl.Detail.LOW).build();
+                    allParts.add(ChatCompletionContentPart.ofImageUrl(ChatCompletionContentPartImage.builder().imageUrl(imageUrl).build()));
+                }
+            } catch (Exception e) {
+                log.error("构建附件消息失败", e);
+            }
+        }
+
+        return allParts;
     }
 }
