@@ -6,6 +6,7 @@ import org.example.aiagent.dto.ChatRequestDTO;
 import org.example.aiagent.dto.ChatResponseDTO;
 import org.example.aiagent.service.ChatService;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,7 +30,10 @@ public class ChatController {
     }
 
     @PostMapping(value = "/stream-chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ChatResponseDTO> stream(@RequestBody @Valid ChatRequestDTO requestDTO) {
-        return chatService.streamChat(requestDTO);
+    public Flux<ServerSentEvent<ChatResponseDTO>> stream(@RequestBody @Valid ChatRequestDTO requestDTO) {
+        return chatService.streamChat(requestDTO)
+                .map(data -> ServerSentEvent.<ChatResponseDTO>builder().data(data).event("message").build())
+                .concatWith(Flux.just(ServerSentEvent.<ChatResponseDTO>builder().event("done").build()))
+                .onErrorResume(e -> Flux.just(ServerSentEvent.<ChatResponseDTO>builder().event("error").build()));
     }
 }
